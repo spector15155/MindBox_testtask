@@ -9,9 +9,9 @@ spec:
   selector:
     matchLabels:
       app: MindBox_webapp
-  replicas: 1
+  replicas: 4                           # 4 пода справятся
   strategy:
-    rollingUpdate:
+    rollingUpdate:                      # Find more info
       maxSurge: 25%
       maxUnavailable: 25%
     type: RollingUpdate
@@ -20,7 +20,7 @@ spec:
       labels:
         app:  MindBox_webapp
     spec:
-      # initContainers:
+      # initContainers:                 # Не нужны
         # Init containers are exactly like regular containers, except:
           # - Init containers always run to completion.
           # - Each init container must complete successfully before the next one starts.
@@ -30,27 +30,27 @@ spec:
         resources:
           requests:
             cpu: 100m                   # Из условия
-            memory: 128Mi               # Из условия
+            memory: 128Mi               # Из условия (M - Megabytes 1000, Mi - Mebibytes 1024)
           limits:
-            cpu: 5                      # т.к приложение потребляет больше процессорного времени на старте
-            memory: 150Mi               # Лимит больше на всяк
-        livenessProbe:
+            cpu: 250m                   # т.к приложение потребляет больше процессорного времени на старте, максимум одноврененно при отказе всех остальных нод может быть запущено 4 пода, при условии что на машине всего 1 ядро -> 1/4=0.25
+            memory: 144Mi               # Лимит памяти больше для надежности
+        livenessProbe:                  # Для надежности используем liveness и readiness пробы
           tcpSocket:
             port: 80
-          initialDelaySeconds: 12       # С запасом по времени (5-10 с)
-          timeoutSeconds: 5
-          successThreshold: 1
-          failureThreshold: 3
-          periodSeconds: 10
+          initialDelaySeconds: 5        # Минимум 5 секунд для инициализации пода 
+          timeoutSeconds: 1             # Проверяем раз в секунду
+          successThreshold: 1           # Проверяем до первой успешной попытки
+          failureThreshold: 5           # Если через 10 секунд со старта под на завелся, перезапускаем
+          periodSeconds: 10             # Каждые 10 секунд проверяем на жизнеспособность
         readinessProbe:
           httpGet:
-            path: /_status/healthz
+            path: "input_path"
             port: 80
-          initialDelaySeconds: 5
-          timeoutSeconds: 2
-          successThreshold: 1
-          failureThreshold: 3
-          periodSeconds: 10
+          initialDelaySeconds: 5        # Минимум 5 секунд для инициализации пода 
+          timeoutSeconds: 1             # Проверяем раз в секунду
+          successThreshold: 1           # Проверяем до первой успешной попытки
+          failureThreshold: 5           # Если через 10 секунд со старта под на завелся, перезапускаем
+          periodSeconds: 10             # Каждые 10 секунд проверяем на работоспособность
         env:
         - name: DB_HOST
           valueFrom:
@@ -61,10 +61,10 @@ spec:
         - containerPort:  80
           name:  MindBox_webapp
         volumeMounts:
-        - name: localtime
-          mountPath: /etc/localtime
+        - name: "input_name"
+          mountPath: "input_path"
       volumes:
-        - name: localtime
+        - name: "input_name"
           hostPath:
-            path: /usr/share/zoneinfo/Asia/Shanghai
+            path: "input_path"
       restartPolicy: Always
