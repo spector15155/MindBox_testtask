@@ -1,3 +1,6 @@
+
+# Deploy
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -11,7 +14,7 @@ spec:
       app: MindBox_webapp
   replicas: 4                           # 4 пода справятся
   strategy:
-    rollingUpdate:                      # Find more info
+    rollingUpdate:
       maxSurge: 25%
       maxUnavailable: 25%
     type: RollingUpdate
@@ -30,10 +33,10 @@ spec:
         resources:
           requests:
             cpu: 100m                   # Из условия
-            memory: 128Mi               # Из условия (M - Megabytes 1000, Mi - Mebibytes 1024)
+            memory: 128Mi               # Из условия (M - Megabytes *1000, Mi - Mebibytes *1024)
           limits:
             cpu: 250m                   # т.к приложение потребляет больше процессорного времени на старте, максимум одноврененно при отказе всех остальных нод может быть запущено 4 пода, при условии что на машине всего 1 ядро -> 1/4=0.25
-            memory: 144Mi               # Лимит памяти больше для надежности
+            memory: 144Mi               # Лимит памяти чуть больше для надежности
         livenessProbe:                  # Для надежности используем liveness и readiness пробы
           tcpSocket:
             port: 80
@@ -63,8 +66,67 @@ spec:
         volumeMounts:
         - name: "input_name"
           mountPath: "input_path"
+      affinity:                          # Впписать сюда параметры выбора зон
+         podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - zones
+            topologyKey: "kubernetes.io/hostname"
       volumes:
         - name: "input_name"
           hostPath:
             path: "input_path"
       restartPolicy: Always
+
+---
+
+# Auto scale when needed
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: MindBox_webapp
+  namespace: test
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: MindBox_webapp
+  minReplicas: 1
+  maxReplicas: 4
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 20
+
+---
+
+# Service
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: MindBox_webapp
+  namespace: test
+spec:
+  selector:
+    app: MindBox_webapp
+  type: ClusterIP
+  sessionAffinity: None
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  ports:
+  - name: MindBox_webapp
+    protocol: TCP
+    port: 80
+
+---
+
